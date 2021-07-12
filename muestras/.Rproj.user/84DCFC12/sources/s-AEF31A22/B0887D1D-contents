@@ -1,0 +1,726 @@
+library(tidyverse)
+library(magrittr)
+library(sf)
+library(leaflet)
+library(ggchicklet)
+library(highcharter)
+
+source("demografia_mun.R")
+
+nueva_info <- rio::import("output/base_info_cat_terr_2k.xlsx")
+
+categorias_prod <- rio::import("input/mapas/grupo_potenciales_prod.xlsx") %>% 
+  janitor::clean_names()
+
+# muncat_bio_prod <- sf::st_read("input/mapas/cruces_marcelo/muncat_bio_prod")
+muncat_bio_prod <- sf::st_read("input/mapas/cruces_marcelo/muncat_bio_prod_2km")
+
+
+rev_muncat_bio_prod <- muncat_bio_prod
+rev_muncat_bio_prod$geometry <- NULL
+
+
+rev_muncat_bio_prod <- left_join(rev_muncat_bio_prod, (categorias_prod %>% select(Cod_prod = id, grupo)), by = "Cod_prod")
+
+rev_muncat_bio_prod <- left_join(rev_muncat_bio_prod, (categorias_municipios %>% select(CODIGO = codigo, departamento)), by = "CODIGO")
+
+# Provincias
+rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% select(-Cod_prod,- grupo) %>% distinct() %>% 
+  rio::export("output/productos_cat/muncat_bio.xlsx")
+
+#Potenciales
+rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% select(-Provincia) %>% distinct() %>% 
+  rio::export("output/productos_cat/muncat_gruppot.xlsx")
+
+# Cruce Provincias y potenciales
+rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% distinct() %>% 
+  rio::export("output/productos_cat/muncat_bio_grupopot.xlsx")
+
+
+
+# a <-   rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% filter(departamento %in% c("LA PAZ")) %>% 
+#   select(MUNICIP, CODIGO, Mod_res, departamento) %>% distinct()
+# a[which(!a$MUNICIP %in% (categorias_municipios %>% filter(departamento == "LA PAZ") %>% select(municipio) %>%  unique() %>% arrange(municipio) %>% pull())),]
+# a %>% filter(CODIGO == "020403")
+# cat_coord_municipios %>% filter(codigo == "020403")
+
+#colores
+temp <- data.frame(Mod_res = as.character(c(1:12)), colores = c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn"), "#BEBADA"))
+
+
+# Barras LP y SCZ con Categorías
+cat_barras1 <- rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% filter(departamento %in% c("LA PAZ", "SANTA CRUZ"), MUNICIP != "Titicaca") %>% 
+  select(MUNICIP, CODIGO, Mod_res, departamento) %>% distinct() %>% 
+  group_by(departamento, Mod_res) %>% 
+  summarise(cantidad = n()) %>% left_join(temp) %>% 
+  rename(categoria = Mod_res) %>% 
+  ggplot(aes(x = departamento, y = cantidad, group = categoria, fill = categoria)) +
+  geom_chicklet(width = 0.75) +
+  scale_fill_manual(name = "Categoría",
+                    values = c("1" = temp$colores[1],
+                               "2"= temp$colores[2],
+                               "3"= temp$colores[3],
+                               "4"= temp$colores[4],
+                               "5"= temp$colores[5],
+                               "6"= temp$colores[6],
+                               "7"= temp$colores[7],
+                               "8"= temp$colores[8],
+                               "9"= temp$colores[9],
+                               "10"= temp$colores[10],
+                               "11"= temp$colores[11],
+                               "12"= temp$colores[12]),
+                    breaks = c("1","2","3","4","5","6","7","8","9","10","11","12")) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Categorías de Municipios por Departamento",
+       x = "",
+       y = "Cantidad Municipios") +
+  theme(title = element_text(size = 22),
+        legend.title = element_text(size = 20),
+        legend.text = element_text( size = 20),
+        axis.title = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        axis.text.y = element_text(size = 20))
+
+  
+
+cat_barras1 + ggsave("output/graficos/barras_cat_mun.jpg", width = 18, height = 12)
+
+
+
+# Cat Barras LP
+
+cat_barras_LP <- rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% filter(departamento %in% c("LA PAZ"), MUNICIP != "Titicaca") %>% 
+  select(MUNICIP, CODIGO, Mod_res, departamento) %>% distinct() %>% 
+  group_by(departamento, Mod_res) %>% 
+  summarise(cantidad = n()) %>% left_join(temp) %>% 
+  rename(categoria = Mod_res) %>% 
+  ggplot(aes(x = departamento, y = cantidad, group = categoria, fill = categoria)) +
+  geom_chicklet(width = 0.75) +
+  scale_fill_manual(name = "Categoría",
+                    values = c("1" = temp$colores[1],
+                               "2"= temp$colores[2],
+                               "3"= temp$colores[3],
+                               "4"= temp$colores[4],
+                               "5"= temp$colores[5],
+                               "6"= temp$colores[6],
+                               "7"= temp$colores[7],
+                               "8"= temp$colores[8],
+                               "9"= temp$colores[9],
+                               "10"= temp$colores[10],
+                               "11"= temp$colores[11],
+                               "12"= temp$colores[12]),
+                    breaks = c("1","2","3","4","5","6","7","8","9","10","11","12")) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Categorías de Municipios por Departamento",
+       subtitle = "Departamento de La Paz",
+       x = "",
+       y = "Cantidad Municipios") +
+  hrbrthemes::theme_ipsum_rc() +
+  theme(title = element_text(size = 22),
+        plot.title = element_text(size = 22),
+        plot.subtitle = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text = element_text( size = 20),
+        axis.title.y  = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 20)) +
+  annotate(geom="text", x=1.4, y=1, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=51, label="1", color="black", size = 3) +
+  # annotate(geom="text", x=1.4, y=1, label="1", color="black") +
+  annotate(geom="text", x=1.4, y=53, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=56, label="3", color="black", size = 3) +
+  # annotate(geom="text", x=1.4, y=1, label="1", color="black") +
+  annotate(geom="text", x=1.4, y=65, label="15", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=77, label="10", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=84, label="5", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=4, label="5", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=15, label="23", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=40, label="23", color="black", size = 3)
+
+
+
+cat_barras_LP + ggsave("output/graficos/barras_cat_mun_LP.jpg", width = 18, height = 12)
+
+
+
+
+# Cat Barras SCZ
+
+cat_barras_SCZ <- rev_muncat_bio_prod %>% filter(!is.na(CODIGO)) %>% filter(departamento %in% c("SANTA CRUZ"), MUNICIP != "Titicaca") %>% 
+  select(MUNICIP, CODIGO, Mod_res, departamento) %>% distinct() %>% 
+  group_by(departamento, Mod_res) %>% 
+  summarise(cantidad = n()) %>% left_join(temp) %>% 
+  rename(categoria = Mod_res) %>% 
+  ggplot(aes(x = departamento, y = cantidad, group = categoria, fill = categoria)) +
+  geom_chicklet(width = 0.75) +
+  scale_fill_manual(name = "Categoría",
+                    values = c("1" = temp$colores[1],
+                               "2"= temp$colores[2],
+                               "3"= temp$colores[3],
+                               "4"= temp$colores[4],
+                               "5"= temp$colores[5],
+                               "6"= temp$colores[6],
+                               "7"= temp$colores[7],
+                               "8"= temp$colores[8],
+                               "9"= temp$colores[9],
+                               "10"= temp$colores[10],
+                               "11"= temp$colores[11],
+                               "12"= temp$colores[12]),
+                    breaks = c("1","2","3","4","5","6","7","8","9","10","11","12")) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(title = "Categorías de Municipios por Departamento",
+       subtitle = "Departamento de Santa Cruz",
+       x = "",
+       y = "Cantidad Municipios") +
+  hrbrthemes::theme_ipsum_rc() +
+  theme(title = element_text(size = 22),
+        plot.title = element_text(size = 22),
+        plot.subtitle = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text = element_text( size = 20),
+        axis.title.y  = element_text(size = 15),
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = 20)) +
+  annotate(geom="text", x=1.4, y=1, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=8.5, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=10, label="2", color="black", size = 3) +
+  # annotate(geom="text", x=1.4, y=53, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=12, label="3", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=25, label="23", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=38, label="1", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=44, label="11", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=52, label="7", color="black", size = 3) +
+  # annotate(geom="text", x=1.4, y=4, label="5", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=3, label="4", color="black", size = 3) +
+  annotate(geom="text", x=1.4, y=7, label="3", color="black", size = 3)
+
+
+
+cat_barras_SCZ + ggsave("output/graficos/barras_cat_mun_SCZ.jpg", width = 18, height = 12)
+
+
+# Barras LP con Provincias
+
+rev_muncat_bio_prod$Provincia %>% unique()
+# colores provincias
+
+
+# combinaciones provincias por municipios LP
+
+rev_muncat_bio_prod %>% select(-Cod_prod,-grupo) %>% 
+  filter(!is.na(CODIGO)) %>% 
+  filter(departamento %in% c("LA PAZ"), MUNICIP != "Titicaca", !is.na(Provincia)) %>% distinct() %>% 
+  group_split(MUNICIP) -> grupos_mun
+
+
+comb_prov <- data.frame()
+for (i in 1:length(grupos_mun)) {
+  comb_prov <- bind_rows(comb_prov,
+                         grupos_mun[[i]] %>% mutate(comb = paste(grupos_mun[[i]][,4])))
+}
+
+comb_prov$comb <- str_remove_all(comb_prov$comb, "\\\"")
+comb_prov$comb <- str_remove_all(comb_prov$comb, "c\\(")
+comb_prov$comb <- str_remove_all(comb_prov$comb, "\\\\")
+comb_prov$comb <- str_remove_all(comb_prov$comb, "\\)")
+comb_prov$comb <- str_replace_all(comb_prov$comb, ",", "/")
+
+comb_prov <- comb_prov %>% select(-Provincia) %>% distinct() 
+
+unique(comb_prov$comb)
+colores_comb <- data.frame(comb = c(unique(comb_prov$comb)), 
+                  colores = c("#AED36C", "#E8E1B8", "#96B548", "#6CAF31", "#D2E5B7", "#E8E1B8", "#BCED35", "#6ECC15"))
+
+
+
+barr_prov_lp <- comb_prov %>% group_by(comb) %>% 
+  summarise(municipios = n()) %>% left_join(colores_comb, by = "comb") %>%  
+  ggplot(aes(x = reorder(stringr::str_wrap(comb, 20), municipios), y = municipios, fill = comb)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = municipios), hjust = -0.5) +
+  coord_flip() +
+  hrbrthemes::theme_ipsum_rc() +
+  scale_y_continuous(breaks = seq(0, 100, by = 5)) +
+  labs(title = "Cantidad Municipios por combinación de Provincia Biológica",
+       subtitle = "Departamento de La Paz",
+       x = "",
+       y = "Cantidad Municipios") +
+  scale_fill_manual(values = c("Puneña Mesofítica/ Yungueña Peruano-Boliviana" = colores_comb$colores[1],
+                               "Puneña Mesofítica"= colores_comb$colores[2],
+                               "Yungueña Peruano-Boliviana"= colores_comb$colores[3],
+                               "Amazónica Suroccidental/ Yungueña Peruano-Boliviana"= colores_comb$colores[4],
+                               "Puneña Mesofítica/ Puneña Xerofítica"= colores_comb$colores[5],
+                               "Puneña Xerofítica"= colores_comb$colores[6],
+                               "Puneña Mesofítica/ Puneña Xerofítica/ Yungueña Peruano-Boliviana"= colores_comb$colores[7],
+                               "Amazónica Suroccidental"= colores_comb$colores[8])) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 22),
+        plot.subtitle = element_text(size = 20),
+        # legend.text = element_text( size = 20),
+        axis.title.x = element_text(size = 18),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 18))
+
+
+barr_prov_lp + ggsave("output/graficos/barras_prov_lp.jpg", width = 18, height = 12)
+
+
+
+
+# combinaciones provincias por municipios SCZ
+
+rev_muncat_bio_prod %>% select(-Cod_prod,-grupo) %>% 
+  filter(!is.na(CODIGO)) %>% 
+  filter(departamento %in% c("SANTA CRUZ"), !is.na(Provincia)) %>% distinct() %>% 
+  group_split(MUNICIP) -> grupos_mun
+
+
+comb_prov_scz <- data.frame()
+for (i in 1:length(grupos_mun)) {
+  comb_prov_scz <- bind_rows(comb_prov_scz,
+                         grupos_mun[[i]] %>% mutate(comb = paste(grupos_mun[[i]][,4])))
+}
+
+comb_prov_scz$comb <- str_remove_all(comb_prov_scz$comb, "\\\"")
+comb_prov_scz$comb <- str_remove_all(comb_prov_scz$comb, "c\\(")
+comb_prov_scz$comb <- str_remove_all(comb_prov_scz$comb, "\\\\")
+comb_prov_scz$comb <- str_remove_all(comb_prov_scz$comb, "\\)")
+comb_prov_scz$comb <- str_replace_all(comb_prov_scz$comb, ",", "/")
+
+comb_prov_scz <- comb_prov_scz %>% select(-Provincia) %>% distinct() 
+
+unique(comb_prov_scz$comb)
+colores_comb <- data.frame(comb = c(unique(comb_prov_scz$comb)), 
+                           colores = c("#96FF00", "#E8E1B8", "#457C0B", "#B7E5BB",
+                                       "#F6FFA1", "#6CAF31","#AED36C", "#8AB28D",
+                                       "#00D30F", "#96B548", "#AB6CB1", "#47FC99",
+                                       "#D2E5B7", "#DAEFDD", "#81F2D2", "#55AD96",
+                                       "#B9FF83", "#6ECC15", "#E7FF00", "#BCED35",
+                                       "#7E8444", "#89AFA4"))
+
+
+barr_prov_scz <- comb_prov_scz %>% group_by(comb) %>% 
+  summarise(municipios = n()) %>% left_join(colores_comb, by = "comb") %>%  
+  ggplot(aes(x = reorder(stringr::str_wrap(comb, 35), municipios), y = municipios, fill = comb)) +
+  geom_bar(stat = "identity", width = 0.8) +
+  geom_text(aes(label = municipios), hjust = -0.5) +
+  coord_flip() +
+  hrbrthemes::theme_ipsum_rc() +
+  scale_y_continuous(breaks = seq(0, 10, by = 2)) +
+  labs(title = "Cantidad Municipios por combinación de Provincia Biológica",
+       subtitle = "Departamento de Santa Cruz",
+       x = "",
+       y = "Cantidad Municipios") +
+  scale_fill_manual(values = c("Amazónica Centro-Sureña/ Beniana/ Cerradense Occidental" = colores_comb$colores[1],
+                               "Boliviano Tucumana/ Chaqueña Septentrional"= colores_comb$colores[2],
+                               "Amazónica Suroccidental/ Beniana/ Boliviano Tucumana/ Cerradense Occidental/ Yungueña Peruano-Boliviana"= colores_comb$colores[3],
+                               "Boliviano Tucumana/ Cerradense Occidental/ Chaqueña Septentrional"= colores_comb$colores[4],
+                               "Boliviano Tucumana"= colores_comb$colores[5],
+                               "Cerradense Occidental/ Chaqueña Septentrional/ Pantanal"= colores_comb$colores[6],
+                               "Cerradense Occidental"= colores_comb$colores[7],
+                               "Amazónica Suroccidental/ Boliviano Tucumana/ Yungueña Peruano-Boliviana"= colores_comb$colores[8],
+                               "Amazónica Centro-Sureña/ Beniana/ Cerradense Occidental/ Chaqueña Septentrional"= colores_comb$colores[9],
+                               "Cerradense Occidental/ Chaqueña Septentrional"= colores_comb$colores[10],
+                               "Beniana/ Cerradense Occidental"= colores_comb$colores[11],
+                               "Boliviano Tucumana/ Cerradense Occidental/ Yungueña Peruano-Boliviana"= colores_comb$colores[12],
+                               "Beniana"= colores_comb$colores[13],
+                               "Boliviano Tucumana/ Yungueña Peruano-Boliviana"= colores_comb$colores[14],
+                               "Amazónica Suroccidental/ Cerradense Occidental"= colores_comb$colores[15],
+                               "Amazónica Suroccidental/ Beniana/ Cerradense Occidental"= colores_comb$colores[16],
+                               "Boliviano Tucumana/ Cerradense Occidental"= colores_comb$colores[17],
+                               "Cerradense Occidental/ Pantanal"= colores_comb$colores[18],
+                               "Amazónica Suroccidental/ Boliviano Tucumana/ Cerradense Occidental/ Yungueña Peruano-Boliviana"= colores_comb$colores[19],
+                               "Amazónica Centro-Sureña/ Cerradense Occidental"= colores_comb$colores[20],
+                               "Amazónica Suroccidental/ Beniana"= colores_comb$colores[21],
+                               "Amazónica Suroccidental/ Beniana/ Yungueña Peruano-Boliviana"= colores_comb$colores[22])) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 22),
+        plot.subtitle = element_text(size = 20),
+        # legend.text = element_text( size = 20),
+        axis.title.x = element_text(size = 18),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 11))
+
+
+barr_prov_scz + ggsave("output/graficos/barras_prov_scz.jpg", width = 18, height = 12)
+
+
+
+## ReacTables
+
+
+
+head(rev_muncat_bio_prod)
+
+revision <- rev_muncat_bio_prod %>% select(-Cod_prod) %>% filter(!is.na(CODIGO)) 
+
+head(revision)
+
+rev_muncat_bio_prod  %>% 
+  filter(!is.na(CODIGO), !is.na(Provincia), !is.na(grupo)) %>% 
+  distinct() %>% 
+  rio::export("output/productos_cat/muncat_bio_pot.xlsx")
+
+rev_muncat_bio_prod  %>% select(-Cod_prod) %>% 
+  filter(!is.na(CODIGO), !is.na(Provincia), !is.na(grupo)) %>% 
+  distinct() %>% 
+  rio::export("output/productos_cat/muncat_bio_grupopot.xlsx")
+
+
+
+revision %>% select(codigo = CODIGO, Provincia) %>% distinct() %>% 
+  group_by(codigo) %>% 
+  summarise(total = n())
+
+revision %>% select(codigo = CODIGO, grupo) %>% distinct() %>% 
+  group_by(codigo) %>% 
+  summarise(total = n())
+
+
+revision %>% select(MUNICIP, Mod_res) %>% distinct() %>% 
+  group_by(Mod_res) %>% 
+  summarise(frecuencia = n()) %>% 
+  ungroup() %>% 
+  mutate(porcent = prop.table(frecuencia)*100) %>% 
+  arrange(desc(porcent))
+
+
+
+revision %>% select(-Provincia) %>%  distinct() %>% 
+  group_by(MUNICIP, CODIGO, Mod_res) %>% 
+  summarise(cantidad_pot = n()) %>% 
+  arrange(desc(cantidad_pot))
+
+#--------
+#tabla cat base, provincia, potencial
+#--------
+
+
+tbl_muncat <- reactable(
+  revision %>% filter(!is.na(Provincia), !is.na(grupo)) %>% 
+    distinct() %>% select(MUNICIP, Mod_res, Provincia, grupo, CODIGO),
+  # mutate(Mod_res = paste0("Categoría ", Mod_res)) %>% 
+  # arrange(as.numeric(Mod_res)),
+  filterable = TRUE, bordered = TRUE, striped = TRUE, highlight = TRUE,
+  defaultPageSize = 12,
+  # minRows = 20,
+  groupBy = c("Mod_res", "MUNICIP", "Provincia"),
+  columns = list(
+    Mod_res = colDef(name = "Categoría Base"),
+    MUNICIP = colDef(name = "Municipio"),
+    Provincia = colDef(name = "Provincia Bio-Ecológica"),
+    grupo = colDef(name = "Grupo Potencial"),
+    CODIGO = colDef(name = "Cod. Municipio") 
+  )
+)
+
+tbl_muncat %>% htmlwidgets::saveWidget(here::here("output/productos_cat/dinamica_muncat_bio_prod.html"))
+
+
+#--------
+#tabla cat base, provincia
+#--------
+
+tbl_muncat_bio <- reactable(
+  revision %>% filter(!is.na(Provincia), !is.na(grupo)) %>% 
+    distinct() %>% select(MUNICIP, Mod_res, Provincia, CODIGO) %>% distinct(),
+  # mutate(Mod_res = paste0("Categoría ", Mod_res)) %>% 
+  # arrange(as.numeric(Mod_res)),
+  filterable = TRUE, bordered = TRUE, striped = TRUE, highlight = TRUE,
+  defaultPageSize = 12,
+  # minRows = 20,
+  groupBy = c("Mod_res", "MUNICIP"),
+  columns = list(
+    Mod_res = colDef(name = "Categoría Base"),
+    MUNICIP = colDef(name = "Municipio"),
+    Provincia = colDef(name = "Provincia Bio-Ecológica"),
+    # grupo = colDef(name = "Grupo Potencial"),
+    CODIGO = colDef(name = "Cod. Municipio") 
+  )
+)
+
+tbl_muncat_bio %>% htmlwidgets::saveWidget(here::here("output/productos_cat/dinamica_muncat_bio.html"))
+
+
+
+#--------
+#tabla cat base, potencial
+#--------
+
+
+tbl_muncat_pot <- reactable(
+  revision %>% filter(!is.na(Provincia), !is.na(grupo)) %>% 
+    distinct() %>% select(MUNICIP, Mod_res, grupo, CODIGO) %>% distinct(),
+  # mutate(Mod_res = paste0("Categoría ", Mod_res)) %>% 
+  # arrange(as.numeric(Mod_res)),
+  filterable = TRUE, bordered = TRUE, striped = TRUE, highlight = TRUE,
+  defaultPageSize = 12,
+  # minRows = 20,
+  groupBy = c("Mod_res", "MUNICIP"),
+  columns = list(
+    Mod_res = colDef(name = "Categoría Base"),
+    MUNICIP = colDef(name = "Municipio"),
+    # Provincia = colDef(name = "Provincia Bio-Ecológica"),
+    grupo = colDef(name = "Grupo Potencial"),
+    CODIGO = colDef(name = "Cod. Municipio") 
+  )
+)
+
+tbl_muncat_pot %>% htmlwidgets::saveWidget(here::here("output/productos_cat/dinamica_muncat_pot.html"))
+
+
+
+length(unique(rev_muncat_bio_prod$CODIGO)) 
+
+
+rev_muncat_bio_prod %>% filter(!is.na(CODIGO), MUNICIP != "Titicaca") %>% select(MUNICIP, CODIGO) %>% distinct() %>% nrow()
+
+
+head(rev_muncat_bio_prod)
+
+
+rev_muncat_bio_prod %>% select(MUNICIP, CODIGO, Mod_res) %>% distinct() %>% filter(!is.na(CODIGO)) %>% nrow
+rev_muncat_bio_prod %>% select(MUNICIP, CODIGO, Mod_res) %>% distinct() %>% filter(!is.na(CODIGO)) %>% 
+  filter(MUNICIP != "Titicaca") %>% 
+  group_by(Mod_res) %>% 
+  summarise(cantidad = n())
+
+
+###------
+# Grafico estructura categorias
+###----------
+
+df <- rio::import("input/mun_tablav2_recat2km.xls") %>% 
+  janitor::clean_names() %>% 
+  select(municip, codigo, perc_pob_u, dens_urb, perc_sup_u, ppu, dpu, su, comb, cat = catv2km) %>% 
+  filter(!is.na(codigo))
+
+
+temp <- data.frame(cat = c(1:12), colores = c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn"), "#BEBADA"))
+
+df <- left_join(df, temp, by = "cat")
+
+
+hc_1 <- df %>% 
+  # filter(cat == 1) %>% 
+  mutate(norm_dens = scale(dens_urb)) %>% 
+  hchart("scatter", hcaes(x = perc_pob_u,
+                          y = perc_sup_u,
+                          size = dens_urb,
+                          # color = colores,
+                          group = cat)) %>%
+  hc_colors(c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn"), "#BEBADA")) %>% 
+  hc_tooltip(enabled = T, valueDecimals = 0, borderWidth = 0.01,
+             pointFormat=paste("<br>Municipio: <b>{point.municip}</b><br>
+                               Categoría: <b>{point.cat}</b><br>
+                               % Pob Urbana: <b>{point.perc_pob_u}</b><br>
+                               Densidad: <b>{point.dens_urb}</b><br>
+                               % Sup. Urbana: <b>{point.perc_sup_u}</b><br>
+                               Estructura: <b>{point.comb}</b>"),
+             headerFormat = "",
+             # fontFamily = "Source Code Pro",
+             borderWidth = 0.8) %>% 
+  hc_yAxis(title = list(text = "% Superficie Urbana")) %>% 
+  hc_xAxis(title = list(text = "% Población Urbana")) %>% 
+  hc_title(text = "Categorías Territorios")
+
+
+hc_1 %>% htmlwidgets::saveWidget(here::here("output/graficos/hc_cat_base1.html"))
+  
+create_hc <- function(t){
+ 
+  hc <- df %>% filter(cat == t) %>% 
+    mutate(norm_dens = scale(dens_urb)) %>% 
+    hchart("scatter", hcaes(x = perc_pob_u,
+                            y = perc_sup_u,
+                            size = dens_urb,
+                            color = colores)) %>%
+    hc_tooltip(enabled = T, valueDecimals = 0, borderWidth = 0.01,
+               pointFormat=paste("<br>Municipio: <b>{point.municip}</b><br>
+                               Categoría: <b>{point.cat}</b><br>
+                               % Pob Urbana: <b>{point.perc_pob_u}</b><br>
+                               Densidad: <b>{point.dens_urb}</b><br>
+                               % Sup. Urbana: <b>{point.perc_sup_u}</b><br>
+                               Estructura: <b>{point.comb}</b>"),
+               headerFormat = "",
+               # fontFamily = "Source Code Pro",
+               borderWidth = 0.8) %>% 
+    hc_yAxis(title = list(text = "% Superficie Urbana")) %>% 
+    hc_xAxis(title = list(text = "% Población Urbana"))
+  hc_title(text = paste0("Categoría ", t))
+  
+  hc
+   
+}
+
+
+hcs <- c(1:12) %>%
+  map(create_hc)
+
+hcs_mutiple <- hcs %>%
+ map(hc_size, height = 300) %>%
+  {print(hw_grid(.)); .} %>%
+  map(tags$div, class = "col-sm-4") %>%
+  tags$div(class = "row") %>% htmltools::doRenderTags()
+
+#---------
+# Rangos variables categorias
+#-------
+
+
+df <- data.frame(cat = as.numeric(c(1:12)), 
+                 min_pob = c(0.73,0.73,0.43,0.73,0.43,0.43,0.43,0.43,0,0,0,0),
+                 max_pob = c(1,1,1,1,1,1,1,1,0.43,0.43,0.43,0.16),
+                 min_den = c(722,722,722,242,242,242,0,0,242,0,0,0),
+                 max_den = c(4500,4500,4500,722,722,722,242,242,722,242,242,242),
+                 min_sup = c(0.52,0.08,0,0.52,0.08,0,0.08,0,0,0.08,0,0),
+                 max_sup = c(1,0.52,0.08,1,0.52,0.08,1,0.08,0.08,0.52,0.08,0.08))
+
+df$cat <- factor(df$cat, levels = df$cat[order(desc(df$cat))])
+df$cat # notice the changed order of factor levels
+
+
+# POBLACION
+df %>% 
+  ggplot(aes(x = cat, group = colores)) + 
+  geom_linerange(aes(ymin = min_pob, ymax = max_pob, color = colores), linetype = 2, size = 2) +
+  geom_point(aes(y=min_pob),size=3,color="red")+
+  geom_point(aes(y=max_pob),size=3,color="red")+
+  # scale_x_continuous(breaks = seq(0, 12, by = 1)) +
+  # scale_color_manual(values=c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn"), "#BEBADA")) +
+  scale_color_manual(values=c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[11],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[10],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[9],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[1],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[8],
+                              "#BEBADA",
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[2],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[7],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[3],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[4],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[5],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[6]
+                              )) +
+  labs(title = "Varliable % Población Urbana",
+       x = "Categoría",
+       y = "Rango % Población Urbana") +
+  # coord_flip() +
+  theme_bw()+
+  hrbrthemes::theme_ipsum_rc() +
+  theme(title = element_text(size = 22),
+        # plot.title = element_text(size = 22),
+        # plot.subtitle = element_text(size = 20),
+        # legend.title = element_blank(),
+        legend.position = "none",
+        axis.title.y  = element_text(size = 15),
+        axis.title.x  = element_text(size = 15),
+        axis.text.x=element_text(size= 20),
+        axis.text.y = element_text(size = 20)) +
+  ggsave("output/graficos/rango_pob_cat.jpg", width = 18, height = 12)
+  
+
+
+
+#SUPERFICIE
+df %>% 
+  ggplot(aes(x = cat, group = colores)) + 
+  geom_linerange(aes(ymin = min_sup, ymax = max_sup, color = colores), linetype = 2, size = 2) +
+  geom_point(aes(y=min_sup),size=3,color="red")+
+  geom_point(aes(y=max_sup),size=3,color="red")+
+  # scale_x_continuous(breaks = seq(0, 12, by = 1)) +
+  # scale_color_manual(values=c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn"), "#BEBADA")) +
+  scale_color_manual(values=c(RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[11],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[10],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[9],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[1],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[8],
+                              "#BEBADA",
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[2],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[7],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[3],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[4],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[5],
+                              RColorBrewer::brewer.pal(n = 11, name = "RdYlGn")[6]
+  )) +
+  labs(title = "Varliable % Superficie Urbana",
+       x = "Categoría",
+       y = "Rango % Superficie Urbana") +
+  # coord_flip() +
+  theme_bw()+
+  hrbrthemes::theme_ipsum_rc() +
+  theme(title = element_text(size = 22),
+        # plot.title = element_text(size = 22),
+        # plot.subtitle = element_text(size = 20),
+        # legend.title = element_blank(),
+        legend.position = "none",
+        axis.title.y  = element_text(size = 15),
+        axis.title.x  = element_text(size = 15),
+        axis.text.x=element_text(size= 20),
+        axis.text.y = element_text(size = 20)) +
+  ggsave("output/graficos/rango_sup_cat.jpg", width = 18, height = 12)
+
+
+
+
+
+#-----
+#Alternativa
+#------
+  
+
+df <- data.frame(cat = as.numeric(c(1:12)), 
+                 min_pob = c(0.73,0.73,0.43,0.73,0.43,0.43,0.43,0.43,0,0,0,0),
+                 max_pob = c(1,1,1,1,1,1,1,1,0.43,0.43,0.43,0.16),
+                 min_den = c(722,722,722,242,242,242,0,0,242,0,0,0),
+                 max_den = c(4500,4500,4500,722,722,722,242,242,722,242,242,242),
+                 min_sup = c(0.52,0.08,0,0.52,0.08,0,0.08,0,0,0.08,0,0),
+                 max_sup = c(1,0.52,0.08,1,0.52,0.08,1,0.08,0.08,0.52,0.08,0.08))
+
+norm_df <- df %>% mutate(min_den = round(min_den/4500,2),
+              max_den = round(max_den/4500,2)) %>% 
+  gather(tipo, valor, - cat) %>% 
+  mutate(cat = case_when(tipo %in% c("min_pob", "max_pob") ~ cat-0.25,
+                          tipo %in% c("min_sup", "max_sup") ~ cat+0.25,
+                          TRUE ~ cat),
+         valor = round(valor*100)) %>% 
+  spread(tipo, valor)
+
+norm_df[is.na(norm_df)] <- 0
+
+
+norm_df
+
+
+# DENSIDAD
+norm_df %>% 
+  ggplot(aes(x = cat)) + 
+  geom_linerange(aes(ymin = min_pob, ymax = max_pob, color = "#008744"), linetype = 1, size = 7.5) +
+  geom_linerange(aes(ymin = min_den, ymax = max_den, color = "#0057e7"), linetype = 1, size = 7.5) +
+  geom_linerange(aes(ymin = min_sup, ymax = max_sup, color = "#d62d20"), linetype = 1, size = 7.5) + 
+  scale_x_reverse(breaks = seq(0, 13, by = 1)) +
+  scale_color_manual(name = "", 
+                     values = rep(c("#008744","#0057e7","#d62d20"),12),
+                     labels = c("Densidad normalizada",
+                                "% Poblacion",
+                                "% Superficie")) +
+labs(title = "Rangos variables Categorías Territorios",
+     x = "Categoría",
+     y = "% Rangos") +
+  coord_flip()+
+  hrbrthemes::theme_ipsum_rc() +
+  geom_text(aes(label = ifelse(min_pob > 0, paste0(">",min_pob, "%"), ""), y = min_pob), hjust = 0, color = "white", size = 5) +
+  geom_text(aes(label = ifelse(max_pob > 0, paste0("<",max_pob, "%"), ""), y = max_pob), hjust = 1, color = "white",size = 5) +
+  geom_text(aes(label = ifelse(min_sup > 0, paste0(">",min_sup, "%"), ""), y = min_sup), hjust = 0, color = "white",size = 5) +
+  geom_text(aes(label = ifelse(max_sup > 0, paste0("<",max_sup, "%"), ""), y = max_sup), hjust = 1, color = "white",size = 5) +
+  geom_text(aes(label = ifelse(min_den > 0, paste0(">",(min_den/100)*4500), ""), y = min_den), hjust = 0, color = "white",size = 5) +
+  geom_text(aes(label = ifelse(max_den > 0, paste0("<",(max_den/100)*4500), ""), y = max_den), hjust = 1, color = "white",size = 5) +
+  theme(title = element_text(size = 25),
+        legend.title = element_text(size =18),
+        legend.text = element_text(size =18),
+        legend.position = "bottom",
+        axis.title.y  = element_text(size = 18),
+        axis.title.x  = element_text(size = 18),
+        axis.text.x=element_text(size= 20),
+        axis.text.y = element_text(size = 20)) +
+  ggsave("output/graficos/rangos_gral_cat.jpg", width = 18, height = 12)
+
